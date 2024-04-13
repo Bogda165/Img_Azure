@@ -3,6 +3,7 @@ use reqwest::Client;
 use std::fs::File;
 use std::io::Read;
 use std::error::Error;
+use std::time::Instant;
 use futures::stream;
 use tokio::fs;
 use serde_json::Value;
@@ -27,6 +28,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
+    let mut request_sended = 0;
+    let mut request_begin = Instant::now();
+    let mut request_end = Instant::now();
+
     // Process each entry concurrently
     dir_entries_stream.for_each_concurrent(None, |entry| async move {
         let path = entry.path();
@@ -39,8 +44,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let response_copy = response.json::<Value>().await.unwrap();
             let response_struct: MyResponse =response_copy.clone().into();
             println!("{:?}", response_struct.caption);
+            request_sended += 1;
+            if (request_sended / 10 == 0) {
+                request_end = Instant::now();
+
+                if(request_end.duration_since(request_begin).as_secs_f64() < 1.0) {
+                    std::thread::sleep(std::time::Duration::from_secs_f64(1.0 - request_end.duration_since(request_begin).as_secs_f64()));
+                }
+                request_begin = Instant::now();
+            }
         }
     }).await;
-
+    //println!("{:?}", response);
+    println!("Time: {}", request_end.duration_since(request_begin).as_secs_f64());
     Ok(())
 }
